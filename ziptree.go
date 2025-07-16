@@ -110,34 +110,30 @@ func (z *ZipTree[K, V]) insert(rootIdx ZipNodeIndex, key K, value V) {
 }
 
 func (z *ZipTree[K, V]) deleteIndex(keyIdx ZipNodeIndex) {
-	if keyIdx == SENTINEL {
-		return
-	} else {
-		z.delete(keyIdx)
-		last := ZipNodeIndex(len(z.entries) - 1)
-		if keyIdx != last {
-			z.entries[keyIdx] = z.entries[last]
-			left, right := z.entries[keyIdx].left, z.entries[keyIdx].right
-			if left != SENTINEL {
-				z.entries[left].parent = keyIdx
-			}
-			if right != SENTINEL {
-				z.entries[right].parent = keyIdx
-			}
-			parent := z.entries[keyIdx].parent
-			if parent != SENTINEL {
-				if last == z.entries[parent].left {
-					z.entries[parent].left = keyIdx
-				} else {
-					z.entries[parent].right = keyIdx
-				}
-			}
-			if last == z.root {
-				z.root = keyIdx
+	z.delete(keyIdx)
+	last := ZipNodeIndex(len(z.entries) - 1)
+	if keyIdx != last {
+		z.entries[keyIdx] = z.entries[last]
+		left, right := z.entries[keyIdx].left, z.entries[keyIdx].right
+		if left != SENTINEL {
+			z.entries[left].parent = keyIdx
+		}
+		if right != SENTINEL {
+			z.entries[right].parent = keyIdx
+		}
+		parent := z.entries[keyIdx].parent
+		if parent != SENTINEL {
+			if last == z.entries[parent].left {
+				z.entries[parent].left = keyIdx
+			} else {
+				z.entries[parent].right = keyIdx
 			}
 		}
-		z.entries = z.entries[:last]
+		if last == z.root {
+			z.root = keyIdx
+		}
 	}
+	z.entries = z.entries[:last]
 }
 
 func (z *ZipTree[K, V]) delete(keyIdx ZipNodeIndex) {
@@ -373,23 +369,39 @@ func (z *ZipTree[K, V]) Maximum() *ZipIterator[K, V] {
 	return z.iterator(z.maximum())
 }
 
-func (z *ZipTree[K, V]) Insert(key K, value V) {
+// Insert returns true if entry was inserted,
+// returns false to indicate update
+func (z *ZipTree[K, V]) Insert(key K, value V) bool {
 	found := z.find(key)
 	if found == SENTINEL {
 		z.insert(z.root, key, value)
+		return true
 	} else {
 		z.entries[found].data = value
+		return false
 	}
 }
 
-func (z *ZipTree[K, V]) DeleteIter(iter *ZipIterator[K, V]) {
+// DeleteIter returns true if entry was deleted
+// returns false if entry not found
+func (z *ZipTree[K, V]) DeleteIter(iter *ZipIterator[K, V]) bool {
 	keyIdx := iter.Index()
+	if keyIdx == SENTINEL {
+		return false
+	}
 	z.deleteIndex(keyIdx)
+	return true
 }
 
-func (z *ZipTree[K, V]) Delete(key K) {
+// Delete returns true if entry was deleted
+// returns false if entry not found
+func (z *ZipTree[K, V]) Delete(key K) bool {
 	keyIdx := z.find(key)
+	if keyIdx == SENTINEL {
+		return false
+	}
 	z.deleteIndex(keyIdx)
+	return true
 }
 
 func (z *ZipTree[K, V]) DisplayTree() string {

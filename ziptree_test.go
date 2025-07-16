@@ -110,8 +110,10 @@ func TestZipTreeDisplayAndSize(t *testing.T) {
 	z.Insert(3, struct{}{})
 	z.Insert(1, struct{}{})
 	z.Insert(2, struct{}{})
-	fmt.Println("We are deleting 1")
-	z.Delete(1)
+
+	assert.Equal(t, true, z.Delete(1))
+	assert.Equal(t, false, z.Delete(11))
+
 	z.Insert(6, struct{}{})
 	z.Insert(8, struct{}{})
 	z.Insert(1, struct{}{})
@@ -121,14 +123,16 @@ func TestZipTreeDisplayAndSize(t *testing.T) {
 	z.Insert(17, struct{}{})
 	z.Insert(-12, struct{}{})
 	z.Insert(-33, struct{}{})
-	z.Insert(222, struct{}{})
 
-	assert.Equal(t, 10, z.Size())
+	assert.Equal(t, 9, z.Size())
 
 	// stays same size since no node inserted
-	z.Insert(17, struct{}{})
-	z.Insert(-12, struct{}{})
-	assert.Equal(t, 10, z.Size())
+	assert.Equal(t, false, z.Insert(17, struct{}{}))
+	assert.Equal(t, false, z.Insert(-12, struct{}{}))
+	assert.Equal(t, 9, z.Size())
+
+	assert.Equal(t, true, z.Insert(222, struct{}{}))
+	assert.Equal(t, z.Size(), 10)
 
 	expected := `└── Key: 8, Idx: 3, Value: {}, Rank: 5, Parent: 4294967295
     ├── Key: 3, Idx: 0, Value: {}, Rank: 2, Parent: 3
