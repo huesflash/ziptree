@@ -12,6 +12,7 @@ func TestZipTrees(t *testing.T) {
 	arrays := [][]int32{
 		{1, 3, 4, 6}, {9, 7, 8, 4}, {-10, 12, -99, 8, 7, 6, 1},
 	}
+	var empty = struct{}{}
 
 	for _, arr := range arrays {
 		n := len(arr)
@@ -22,7 +23,7 @@ func TestZipTrees(t *testing.T) {
 			return a < b
 		})
 		for _, v := range sortedArray {
-			tree.Insert(v, struct{}{})
+			tree.Insert(v, empty)
 		}
 
 		assert.Equal(t, sortedArray[lo], tree.Ceiling(sortedArray[lo]-1).Key())
@@ -59,12 +60,13 @@ func TestZipTreeDeletion(t *testing.T) {
 		return a < b
 	})
 
+	var empty = struct{}{}
 	key := int32(0)
-	tree.Insert(key, struct{}{})
+	tree.Insert(key, empty)
 	assert.Equal(t, 1, tree.Size())
 	assert.Equal(t, key, tree.Minimum().Key())
 	assert.Equal(t, key, tree.Maximum().Key())
-	tree.Delete(key)
+	assert.Equal(t, true, tree.Delete(key))
 	assert.Equal(t, 0, tree.Size())
 	assert.Equal(t, SENTINEL, tree.Minimum().Index())
 	assert.Equal(t, SENTINEL, tree.Maximum().Index())
@@ -72,7 +74,7 @@ func TestZipTreeDeletion(t *testing.T) {
 	arr := []int32{6, 4, 3, 1}
 
 	for _, v := range arr {
-		tree.Insert(v, struct{}{})
+		tree.Insert(v, empty)
 	}
 
 	slices.Sort(arr)
@@ -101,75 +103,56 @@ func TestZipTreeDeletion(t *testing.T) {
 	assert.Equal(t, 2, tree.Size())
 	assert.Equal(t, arr[2], tree.Minimum().Key())
 	assert.Equal(t, arr[1], tree.Maximum().Key())
+
+	// stays same size since no node inserted
+	assert.Equal(t, false, tree.Insert(arr[1], empty))
+	assert.Equal(t, false, tree.Insert(arr[2], empty))
+	assert.Equal(t, 2, tree.Size())
 }
 
 func TestZipTreeDisplayAndSize(t *testing.T) {
-	z := NewZipTreeWithRandomGenerator[int32, struct{}](func(a, b int32) bool {
+	tree := NewZipTreeWithRandomGenerator[int32, struct{}](func(a, b int32) bool {
 		return a < b
 	}, rand.New(rand.NewPCG(123, 456)))
-	z.Insert(3, struct{}{})
-	z.Insert(1, struct{}{})
-	z.Insert(2, struct{}{})
 
-	assert.Equal(t, true, z.Delete(1))
-	assert.Equal(t, false, z.Delete(11))
+	var empty = struct{}{}
+	tree.Insert(3, empty)
+	tree.Insert(1, empty)
+	tree.Insert(2, empty)
 
-	z.Insert(6, struct{}{})
-	z.Insert(8, struct{}{})
-	z.Insert(1, struct{}{})
-	z.Insert(2, struct{}{})
-	z.Insert(8, struct{}{})
-	z.Insert(9, struct{}{})
-	z.Insert(17, struct{}{})
-	z.Insert(-12, struct{}{})
-	z.Insert(-33, struct{}{})
+	assert.Equal(t, true, tree.Delete(1))
+	assert.Equal(t, false, tree.Delete(11))
 
-	assert.Equal(t, 9, z.Size())
+	tree.Insert(6, empty)
+	tree.Insert(8, empty)
+	tree.Insert(1, empty)
+	tree.Insert(2, empty)
+	tree.Insert(8, empty)
+	tree.Insert(9, empty)
+	tree.Insert(17, empty)
+	tree.Insert(-12, empty)
+	tree.Insert(-33, empty)
 
-	// stays same size since no node inserted
-	assert.Equal(t, false, z.Insert(17, struct{}{}))
-	assert.Equal(t, false, z.Insert(-12, struct{}{}))
-	assert.Equal(t, 9, z.Size())
+	assert.Equal(t, 9, tree.Size())
+	assert.Equal(t, true, tree.Insert(222, empty))
+	assert.Equal(t, tree.Size(), 10)
 
-	assert.Equal(t, true, z.Insert(222, struct{}{}))
-	assert.Equal(t, z.Size(), 10)
-
-	expected := `└── Key: 8, Idx: 3, Value: {}, Rank: 5, Parent: 4294967295
-    ├── Key: 3, Idx: 0, Value: {}, Rank: 2, Parent: 3
-    │   ├── Key: -33, Idx: 8, Value: {}, Rank: 1, Parent: 0
-    │   │   └── Key: 2, Idx: 1, Value: {}, Rank: 1, Parent: 8
-    │   │       └── Key: -12, Idx: 7, Value: {}, Rank: 0, Parent: 1
-    │   │           └── Key: 1, Idx: 4, Value: {}, Rank: 0, Parent: 7
-    │   └── Key: 6, Idx: 2, Value: {}, Rank: 0, Parent: 0
-    └── Key: 9, Idx: 5, Value: {}, Rank: 0, Parent: 3
-        └── Key: 17, Idx: 6, Value: {}, Rank: 0, Parent: 5
-            └── Key: 222, Idx: 9, Value: {}, Rank: 0, Parent: 6
-`
-	assert.Equal(t, expected, z.DisplayTree())
+	expected := "└── Key: 6, Idx: 2, Value: {}, Rank: 327681, Parent: 4294967295\n    ├── Key: -12, Idx: 7, Value: {}, Rank: 196629, Parent: 2\n    │   ├── Key: -33, Idx: 8, Value: {}, Rank: 2, Parent: 7\n    │   └── Key: 3, Idx: 0, Value: {}, Rank: 131073, Parent: 7\n    │       └── Key: 1, Idx: 4, Value: {}, Rank: 8, Parent: 0\n    │           └── Key: 2, Idx: 1, Value: {}, Rank: 1, Parent: 4\n    └── Key: 17, Idx: 6, Value: {}, Rank: 262149, Parent: 2\n        ├── Key: 9, Idx: 5, Value: {}, Rank: 7, Parent: 6\n        │   └── Key: 8, Idx: 3, Value: {}, Rank: 5, Parent: 5\n        └── Key: 222, Idx: 9, Value: {}, Rank: 1, Parent: 6\n"
+	assert.Equal(t, expected, tree.DisplayTree())
 
 	// test ordered display
-	expected = `Key: -33, Idx: 8, Value: {}, Rank: 1, Parent: 0
-Key: -12, Idx: 7, Value: {}, Rank: 0, Parent: 1
-Key: 1, Idx: 4, Value: {}, Rank: 0, Parent: 7
-Key: 2, Idx: 1, Value: {}, Rank: 1, Parent: 8
-Key: 3, Idx: 0, Value: {}, Rank: 2, Parent: 3
-Key: 6, Idx: 2, Value: {}, Rank: 0, Parent: 0
-Key: 8, Idx: 3, Value: {}, Rank: 5, Parent: 4294967295
-Key: 9, Idx: 5, Value: {}, Rank: 0, Parent: 3
-Key: 17, Idx: 6, Value: {}, Rank: 0, Parent: 5
-Key: 222, Idx: 9, Value: {}, Rank: 0, Parent: 6
-`
-	assert.Equal(t, expected, z.DisplayTreeNodesInOrder())
+	expected = "Key: -33, Idx: 8, Value: {}, Rank: 2, Parent: 7\nKey: -12, Idx: 7, Value: {}, Rank: 196629, Parent: 2\nKey: 1, Idx: 4, Value: {}, Rank: 8, Parent: 0\nKey: 2, Idx: 1, Value: {}, Rank: 1, Parent: 4\nKey: 3, Idx: 0, Value: {}, Rank: 131073, Parent: 7\nKey: 6, Idx: 2, Value: {}, Rank: 327681, Parent: 4294967295\nKey: 8, Idx: 3, Value: {}, Rank: 5, Parent: 5\nKey: 9, Idx: 5, Value: {}, Rank: 7, Parent: 6\nKey: 17, Idx: 6, Value: {}, Rank: 262149, Parent: 2\nKey: 222, Idx: 9, Value: {}, Rank: 1, Parent: 6\n"
+	assert.Equal(t, expected, tree.DisplayTreeNodesInOrder())
 
 	// inert two new values
-	z.Insert(12, struct{}{})
-	z.Insert(0, struct{}{})
-	assert.Equal(t, 12, z.Size())
+	tree.Insert(12, empty)
+	tree.Insert(0, empty)
+	assert.Equal(t, 12, tree.Size())
 
 	// test iterations
 
 	orderedNodes := ""
-	iter := z.NewIterator()
+	iter := tree.NewIterator()
 	for !iter.IsEmpty() {
 		current := iter.Index()
 		key, value := iter.Key(), iter.Value()
@@ -177,24 +160,12 @@ Key: 222, Idx: 9, Value: {}, Rank: 0, Parent: 6
 		orderedNodes += fmt.Sprintf("Key: %v, Idx: %d, Value: %v, Parent: %d\n", key, current, value, parent)
 		iter.Next()
 	}
-	expected = `Key: -33, Idx: 8, Value: {}, Parent: 0
-Key: -12, Idx: 7, Value: {}, Parent: 1
-Key: 0, Idx: 11, Value: {}, Parent: 7
-Key: 1, Idx: 4, Value: {}, Parent: 11
-Key: 2, Idx: 1, Value: {}, Parent: 8
-Key: 3, Idx: 0, Value: {}, Parent: 3
-Key: 6, Idx: 2, Value: {}, Parent: 0
-Key: 8, Idx: 3, Value: {}, Parent: 4294967295
-Key: 9, Idx: 5, Value: {}, Parent: 10
-Key: 12, Idx: 10, Value: {}, Parent: 3
-Key: 17, Idx: 6, Value: {}, Parent: 10
-Key: 222, Idx: 9, Value: {}, Parent: 6
-`
+	expected = "Key: -33, Idx: 8, Value: {}, Parent: 7\nKey: -12, Idx: 7, Value: {}, Parent: 2\nKey: 0, Idx: 11, Value: {}, Parent: 7\nKey: 1, Idx: 4, Value: {}, Parent: 0\nKey: 2, Idx: 1, Value: {}, Parent: 4\nKey: 3, Idx: 0, Value: {}, Parent: 11\nKey: 6, Idx: 2, Value: {}, Parent: 4294967295\nKey: 8, Idx: 3, Value: {}, Parent: 5\nKey: 9, Idx: 5, Value: {}, Parent: 10\nKey: 12, Idx: 10, Value: {}, Parent: 6\nKey: 17, Idx: 6, Value: {}, Parent: 2\nKey: 222, Idx: 9, Value: {}, Parent: 6\n"
 	assert.Equal(t, expected, orderedNodes)
 
 	// backwards
 	orderedNodes = ""
-	iter = z.NewPrevIterator()
+	iter = tree.NewPrevIterator()
 	for !iter.IsEmpty() {
 		current := iter.Index()
 		key, value := iter.Key(), iter.Value()
@@ -203,20 +174,8 @@ Key: 222, Idx: 9, Value: {}, Parent: 6
 		iter.Prev()
 	}
 
-	expected = `Key: 222, Idx: 9, Value: {}, Parent: 6
-Key: 17, Idx: 6, Value: {}, Parent: 10
-Key: 12, Idx: 10, Value: {}, Parent: 3
-Key: 9, Idx: 5, Value: {}, Parent: 10
-Key: 8, Idx: 3, Value: {}, Parent: 4294967295
-Key: 6, Idx: 2, Value: {}, Parent: 0
-Key: 3, Idx: 0, Value: {}, Parent: 3
-Key: 2, Idx: 1, Value: {}, Parent: 8
-Key: 1, Idx: 4, Value: {}, Parent: 11
-Key: 0, Idx: 11, Value: {}, Parent: 7
-Key: -12, Idx: 7, Value: {}, Parent: 1
-Key: -33, Idx: 8, Value: {}, Parent: 0
-`
+	expected = "Key: 222, Idx: 9, Value: {}, Parent: 6\nKey: 17, Idx: 6, Value: {}, Parent: 2\nKey: 12, Idx: 10, Value: {}, Parent: 6\nKey: 9, Idx: 5, Value: {}, Parent: 10\nKey: 8, Idx: 3, Value: {}, Parent: 5\nKey: 6, Idx: 2, Value: {}, Parent: 4294967295\nKey: 3, Idx: 0, Value: {}, Parent: 11\nKey: 2, Idx: 1, Value: {}, Parent: 4\nKey: 1, Idx: 4, Value: {}, Parent: 0\nKey: 0, Idx: 11, Value: {}, Parent: 7\nKey: -12, Idx: 7, Value: {}, Parent: 2\nKey: -33, Idx: 8, Value: {}, Parent: 7\n"
 	assert.Equal(t, expected, orderedNodes)
-	z.Delete(z.Maximum().Key())
-	assert.Equal(t, int32(17), z.Maximum().Key())
+	tree.Delete(tree.Maximum().Key())
+	assert.Equal(t, int32(17), tree.Maximum().Key())
 }

@@ -2,6 +2,7 @@ package ziptree
 
 import (
 	"fmt"
+	"math/bits"
 	"math/rand/v2"
 )
 
@@ -39,10 +40,18 @@ func (z *ZipTree[K, V]) find(key K) ZipNodeIndex {
 
 func (z *ZipTree[K, V]) insert(rootIdx ZipNodeIndex, key K, value V) {
 	idx := ZipNodeIndex(len(z.entries))
-	var rank uint32 = 0
+	// zip-zip tree
+	var r1 uint32 = 0
 	for z.randomGenerator.Int32N(2) != 0 {
-		rank++
+		r1++
 	}
+	n := uint32(len(z.entries))
+	r2 := uint32(0)
+	if n > 0 {
+		logOfN := bits.Len32(n+1) - 1
+		r2 = z.randomGenerator.Uint32N(uint32(logOfN * logOfN * logOfN))
+	}
+	rank := r1<<16 | (1 + r2)
 	z.entries = append(z.entries, ZipNode[K, V]{
 		key:    key,
 		data:   value,
