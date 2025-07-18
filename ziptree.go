@@ -2,7 +2,9 @@ package ziptree
 
 import (
 	"fmt"
+	"math/bits"
 	"math/rand/v2"
+	"strings"
 )
 
 type ZipNodeIndex uint32
@@ -23,6 +25,16 @@ type ZipTree[K, V any] struct {
 	randomGenerator *rand.Rand
 }
 
+func (zn *ZipNode[K, V]) String() string {
+	return fmt.Sprintf("Key: %v,  Value: %v, Rank: (%d, %d)", zn.key, zn.data, zn.rank>>16, zn.rank&0x0000ffff)
+}
+
+func (z *ZipTree[K, V]) String() string {
+	var sb strings.Builder
+	z.displayTree(z.root, "", false, false, &sb)
+	return sb.String()
+}
+
 func (z *ZipTree[K, V]) find(key K) ZipNodeIndex {
 	root := z.root
 	for root != SENTINEL {
@@ -39,10 +51,18 @@ func (z *ZipTree[K, V]) find(key K) ZipNodeIndex {
 
 func (z *ZipTree[K, V]) insert(rootIdx ZipNodeIndex, key K, value V) {
 	idx := ZipNodeIndex(len(z.entries))
-	var rank uint32 = 0
+	// zip-zip tree
+	var r1 uint32 = 0
 	for z.randomGenerator.Int32N(2) != 0 {
-		rank++
+		r1++
 	}
+	n := uint32(len(z.entries))
+	r2 := uint32(0)
+	if n > 0 {
+		logOfN := bits.Len32(n+1) - 1
+		r2 = z.randomGenerator.Uint32N(uint32(logOfN * logOfN * logOfN))
+	}
+	rank := r1<<16 | (1 + r2)
 	z.entries = append(z.entries, ZipNode[K, V]{
 		key:    key,
 		data:   value,
@@ -190,17 +210,17 @@ func (z *ZipTree[K, V]) delete(keyIdx ZipNodeIndex) {
 }
 
 // DisplayTree the tree in a human-readable way
-func (z *ZipTree[K, V]) displayTree(rootIdx ZipNodeIndex, prefix string, isLeft bool, hasBoth bool) string {
+func (z *ZipTree[K, V]) displayTree(rootIdx ZipNodeIndex, prefix string, isLeft bool, hasBoth bool, sb *strings.Builder) {
 	if rootIdx != SENTINEL {
 		node := &z.entries[rootIdx]
 
-		ret := prefix
+		sb.WriteString(prefix)
 		if isLeft && hasBoth {
-			ret = ret + "├── "
+			sb.WriteString("├── ")
 		} else {
-			ret = ret + "└── "
+			sb.WriteString("└── ")
 		}
-		ret = ret + fmt.Sprintf("Key: %v, Idx: %d, Value: %v, Rank: %d, Parent: %d\n", node.key, rootIdx, node.data, node.rank, node.parent)
+		sb.WriteString(fmt.Sprintf("Idx: %d, ", rootIdx) + node.String() + fmt.Sprintf(", Parent: %d\n", node.parent))
 		newPrefix := prefix
 		if isLeft && hasBoth {
 			newPrefix += "│   "
@@ -208,22 +228,18 @@ func (z *ZipTree[K, V]) displayTree(rootIdx ZipNodeIndex, prefix string, isLeft 
 			newPrefix += "    "
 		}
 		nodeHasBoth := node.left != SENTINEL && node.right != SENTINEL
-		left, right := z.displayTree(node.left, newPrefix, true, nodeHasBoth), z.displayTree(node.right, newPrefix, false, nodeHasBoth)
-		ret = ret + left + right
-		return ret
+		z.displayTree(node.left, newPrefix, true, nodeHasBoth, sb)
+		z.displayTree(node.right, newPrefix, false, nodeHasBoth, sb)
 	}
-	return ""
 }
 
-func (z *ZipTree[K, V]) displayTreeNodesInOrder(rootIdx ZipNodeIndex) string {
+func (z *ZipTree[K, V]) displayTreeNodesInOrder(rootIdx ZipNodeIndex, sb *strings.Builder) {
 	if rootIdx != SENTINEL {
 		node := z.entries[rootIdx]
-		ret := z.displayTreeNodesInOrder(node.left) +
-			fmt.Sprintf("Key: %v, Idx: %d, Value: %v, Rank: %d, Parent: %d\n", node.key, rootIdx, node.data, node.rank, node.parent)
-		ret = ret + z.displayTreeNodesInOrder(node.right)
-		return ret
+		z.displayTreeNodesInOrder(node.left, sb)
+		sb.WriteString(node.String() + "\n")
+		z.displayTreeNodesInOrder(node.right, sb)
 	}
-	return ""
 }
 
 func (z *ZipTree[K, V]) leftMost() ZipNodeIndex {
@@ -342,7 +358,7 @@ func (z *ZipTree[K, V]) Ceiling(key K) *ZipIterator[K, V] {
 
 }
 
-// Floor Returns an iterator pointing to largest element in the BST less than or equal to key)
+// Floor Returns an iterator pointing to largest element in the BST less than or equal to key
 func (z *ZipTree[K, V]) Floor(key K) *ZipIterator[K, V] {
 	return z.iterator(z.floor(key))
 }
@@ -404,12 +420,10 @@ func (z *ZipTree[K, V]) Delete(key K) bool {
 	return true
 }
 
-func (z *ZipTree[K, V]) DisplayTree() string {
-	return z.displayTree(z.root, "", false, false)
-}
-
 func (z *ZipTree[K, V]) DisplayTreeNodesInOrder() string {
-	return z.displayTreeNodesInOrder(z.root)
+	var sb strings.Builder
+	z.displayTreeNodesInOrder(z.root, &sb)
+	return sb.String()
 }
 
 func (z *ZipTree[K, V]) Size() int {
