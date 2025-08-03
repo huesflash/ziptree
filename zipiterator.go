@@ -1,7 +1,7 @@
 package ziptree
 
 type ZipIterator[K, V any] struct {
-	current ZipNodeIndex // index to the current node in the traversal
+	current ZipNodeEntryIndex // index to the current node in the traversal
 	entries []ZipNode[K, V]
 }
 
@@ -9,7 +9,7 @@ func (it *ZipIterator[K, V]) IsEmpty() bool {
 	return it.current == SENTINEL
 }
 
-func (it *ZipIterator[K, V]) Index() ZipNodeIndex {
+func (it *ZipIterator[K, V]) Index() ZipNodeEntryIndex {
 	return it.current
 }
 
@@ -76,7 +76,7 @@ func (it *ZipIterator[K, V]) Key() K {
 	return ret
 }
 
-func (it *ZipIterator[K, V]) Parent() ZipNodeIndex {
+func (it *ZipIterator[K, V]) Parent() ZipNodeEntryIndex {
 	ret := SENTINEL
 	if it.current != SENTINEL {
 		ret = it.entries[it.current].parent
