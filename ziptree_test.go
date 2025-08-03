@@ -364,4 +364,16 @@ func TestArrayIndexIndex(t *testing.T) {
 			}
 		}
 	})
+	t.Run("not found", func(t *testing.T) {
+		tree := NewZipTreeWithRandomGenerator[int32, struct{}](func(a, b int32) bool {
+			return a < b
+		}, rand.New(rand.NewPCG(123, 456)))
+		treeValues := []int32{6, 8, 1, 2, 8, 9, 17, -12, -33}
+		for _, v := range treeValues {
+			tree.Insert(v, empty)
+		}
+		assert.Equal(t, ^uint32(0), tree.IndexOf(int32(-34)))
+		assert.Equal(t, ^uint32(0), tree.IndexOf(int32(34)))
+		assert.Equal(t, SENTINEL, tree.AtIndex(uint32(34)).Key())
+	})
 }
