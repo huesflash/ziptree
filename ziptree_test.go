@@ -109,6 +109,32 @@ func TestZipTreeDeletion(t *testing.T) {
 	assert.Equal(t, false, tree.Insert(arr[1], empty))
 	assert.Equal(t, false, tree.Insert(arr[2], empty))
 	assert.Equal(t, 2, tree.Size())
+
+	t.Run("simple delete", func(t *testing.T) {
+		tree := NewZipTreeWithRandomGenerator[int32, struct{}](func(a, b int32) bool {
+			return a < b
+		}, rand.New(rand.NewPCG(123, 456)))
+		assert.Equal(t, 0, tree.Size())
+		assert.Equal(t, 0, tree.Count())
+		treeValues := []int32{6, 8, 1, 2, 9, 17, -12, -33}
+		for i, v := range treeValues {
+			tree.Insert(v, empty)
+			assert.Equal(t, i+1, tree.Size())
+			assert.Equal(t, i+1, tree.Count())
+		}
+		assert.Equal(t, ^uint32(0), tree.IndexOf(int32(-34)))
+		assert.Equal(t, ^uint32(0), tree.IndexOf(int32(34)))
+		assert.Equal(t, SENTINEL, tree.AtIndex(uint32(34)).Index())
+
+		rem := tree.Size()
+		assert.Equal(t, rem, len(treeValues))
+		for _, v := range treeValues {
+			tree.Delete(v)
+			rem -= 1
+			assert.Equal(t, rem, tree.Size())
+			assert.Equal(t, rem, tree.Count())
+		}
+	})
 }
 
 func TestZipTreeDisplayAndSize(t *testing.T) {
@@ -292,6 +318,13 @@ func checkOrderedNodes(t *testing.T, tree *ZipTree[int32, struct{}]) {
 		iter.Next()
 	}
 	assert.True(t, slices.IsSorted(orderedNodes))
+	n := tree.Size()
+	assert.Equal(t, n, len(orderedNodes))
+	assert.Equal(t, n, tree.Count())
+
+	for k := 0; k < n; k++ {
+		assert.Equal(t, orderedNodes[k], tree.AtIndex(uint32(k)).Key())
+	}
 }
 
 func TestArrayIndexIndex(t *testing.T) {
@@ -374,6 +407,6 @@ func TestArrayIndexIndex(t *testing.T) {
 		}
 		assert.Equal(t, ^uint32(0), tree.IndexOf(int32(-34)))
 		assert.Equal(t, ^uint32(0), tree.IndexOf(int32(34)))
-		assert.Equal(t, SENTINEL, tree.AtIndex(uint32(34)).Key())
+		assert.Equal(t, SENTINEL, tree.AtIndex(uint32(34)).Index())
 	})
 }
