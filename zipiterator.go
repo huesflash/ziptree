@@ -1,35 +1,37 @@
 package ziptree
 
-type ZipIterator[K, V any] struct {
+type ZipIterator[K any] struct {
 	current ZipNodeEntryIndex // index to the current node in the traversal
-	entries []ZipNode[K, V]
+	entries []ZipNode[K]
 }
 
-func (it *ZipIterator[K, V]) IsEmpty() bool {
+func (it *ZipIterator[K]) IsEmpty() bool {
 	return it.current == SENTINEL
 }
 
-func (it *ZipIterator[K, V]) Index() ZipNodeEntryIndex {
+func (it *ZipIterator[K]) Index() ZipNodeEntryIndex {
 	return it.current
 }
 
 // Next move iterator forward
-func (it *ZipIterator[K, V]) Next() {
+func (it *ZipIterator[K]) Next() {
 	if it.IsEmpty() {
 		return // Or handle error appropriately
 	}
+	root := it.current
 	// Move to the next node
-	if it.entries[it.current].right != SENTINEL {
+	if it.entries[root].right != SENTINEL {
 		// If there's a right child, go to its leftmost descendant
-		it.current = it.entries[it.current].right
-		for it.entries[it.current].left != SENTINEL {
-			it.current = it.entries[it.current].left
+		root = it.entries[root].right
+		for it.entries[root].left != SENTINEL {
+			root = it.entries[root].left
 		}
+		it.current = root
 	} else {
 		// If no right child, move up to the parent until we come from a left child
-		parent := it.entries[it.current].parent
-		for parent != SENTINEL && it.entries[parent].right == it.current {
-			it.current = parent
+		parent := it.entries[root].parent
+		for parent != SENTINEL && it.entries[parent].right == root {
+			root = parent
 			parent = it.entries[parent].parent
 		}
 		it.current = parent
@@ -37,38 +39,31 @@ func (it *ZipIterator[K, V]) Next() {
 }
 
 // Prev move iterator backwards
-func (it *ZipIterator[K, V]) Prev() {
+func (it *ZipIterator[K]) Prev() {
 	if it.IsEmpty() {
 		return // Or handle error appropriately
 	}
-
+	root := it.current
 	// Move to the next node
-	if it.entries[it.current].left != SENTINEL {
+	if it.entries[root].left != SENTINEL {
 		// Find the rightmost node in the left subtree
-		it.current = it.entries[it.current].left
-		for it.entries[it.current].right != SENTINEL {
-			it.current = it.entries[it.current].right
+		root = it.entries[root].left
+		for it.entries[root].right != SENTINEL {
+			root = it.entries[root].right
 		}
+		it.current = root
 	} else {
 		// Traverse up using parent pointers
-		parent := it.entries[it.current].parent
-		for parent != SENTINEL && it.entries[parent].left == it.current {
-			it.current = parent
+		parent := it.entries[root].parent
+		for parent != SENTINEL && it.entries[parent].left == root {
+			root = parent
 			parent = it.entries[parent].parent
 		}
 		it.current = parent
 	}
 }
 
-func (it *ZipIterator[K, V]) Value() V {
-	var ret V
-	if it.current != SENTINEL {
-		ret = it.entries[it.current].data
-	}
-	return ret
-}
-
-func (it *ZipIterator[K, V]) Key() K {
+func (it *ZipIterator[K]) Key() K {
 	var ret K
 	if it.current != SENTINEL {
 		ret = it.entries[it.current].key
@@ -76,7 +71,7 @@ func (it *ZipIterator[K, V]) Key() K {
 	return ret
 }
 
-func (it *ZipIterator[K, V]) Parent() ZipNodeEntryIndex {
+func (it *ZipIterator[K]) Parent() ZipNodeEntryIndex {
 	ret := SENTINEL
 	if it.current != SENTINEL {
 		ret = it.entries[it.current].parent

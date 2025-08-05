@@ -11,31 +11,30 @@ type ZipNodeEntryIndex uint32
 
 const SENTINEL = ^ZipNodeEntryIndex(0)
 
-type ZipNode[K, V any] struct {
+type ZipNode[K any] struct {
 	key                 K
 	left, right, parent ZipNodeEntryIndex
 	rank, count         uint32
-	data                V
 }
 
-type ZipTree[K, V any] struct {
-	entries         []ZipNode[K, V]
+type ZipTree[K any] struct {
+	entries         []ZipNode[K]
 	root            ZipNodeEntryIndex
 	comparator      Comparator[K]
 	randomGenerator *rand.Rand
 }
 
-func (zn *ZipNode[K, V]) String() string {
-	return fmt.Sprintf("Key: %v,  Value: %v, Rank: (%d, %d), Count: %d", zn.key, zn.data, zn.rank>>16, zn.rank&0x0000ffff, zn.count)
+func (zn *ZipNode[K]) String() string {
+	return fmt.Sprintf("Key: %v, Rank: (%d, %d), Count: %d", zn.key, zn.rank>>16, zn.rank&0x0000ffff, zn.count)
 }
 
-func (z *ZipTree[K, V]) String() string {
+func (z *ZipTree[K]) String() string {
 	var sb strings.Builder
 	z.displayTree(z.root, "", false, false, &sb)
 	return sb.String()
 }
 
-func (z *ZipTree[K, V]) find(key K) ZipNodeEntryIndex {
+func (z *ZipTree[K]) find(key K) ZipNodeEntryIndex {
 	root := z.root
 	for root != SENTINEL {
 		if z.comparator.LessThan(key, z.entries[root].key) {
@@ -49,7 +48,7 @@ func (z *ZipTree[K, V]) find(key K) ZipNodeEntryIndex {
 	return root
 }
 
-func (z *ZipTree[K, V]) insert(rootIdx ZipNodeEntryIndex, key K, value V) {
+func (z *ZipTree[K]) insert(rootIdx ZipNodeEntryIndex, key K) {
 	idx := ZipNodeEntryIndex(len(z.entries))
 	// zip-zip tree
 	var r1 uint32 = 0
@@ -63,9 +62,8 @@ func (z *ZipTree[K, V]) insert(rootIdx ZipNodeEntryIndex, key K, value V) {
 		r2 = z.randomGenerator.Uint32N(uint32(logOfN * logOfN * logOfN))
 	}
 	rank := r1<<16 | (1 + r2)
-	z.entries = append(z.entries, ZipNode[K, V]{
+	z.entries = append(z.entries, ZipNode[K]{
 		key:    key,
-		data:   value,
 		rank:   rank,
 		left:   SENTINEL,
 		right:  SENTINEL,
@@ -130,7 +128,7 @@ func (z *ZipTree[K, V]) insert(rootIdx ZipNodeEntryIndex, key K, value V) {
 	z.fixupCount(idx, SENTINEL)
 }
 
-func (z *ZipTree[K, V]) compact(keyIdx ZipNodeEntryIndex) {
+func (z *ZipTree[K]) compact(keyIdx ZipNodeEntryIndex) {
 	last := ZipNodeEntryIndex(len(z.entries) - 1)
 	if keyIdx != last {
 		z.entries[keyIdx] = z.entries[last]
@@ -156,7 +154,7 @@ func (z *ZipTree[K, V]) compact(keyIdx ZipNodeEntryIndex) {
 	z.entries = z.entries[:last]
 }
 
-func (z *ZipTree[K, V]) deleteInternal(keyIdx ZipNodeEntryIndex) bool {
+func (z *ZipTree[K]) deleteInternal(keyIdx ZipNodeEntryIndex) bool {
 	if keyIdx == SENTINEL {
 		return false
 	}
@@ -165,7 +163,7 @@ func (z *ZipTree[K, V]) deleteInternal(keyIdx ZipNodeEntryIndex) bool {
 	return true
 }
 
-func (z *ZipTree[K, V]) deleteIndex(keyIdx ZipNodeEntryIndex) {
+func (z *ZipTree[K]) deleteIndex(keyIdx ZipNodeEntryIndex) {
 	curr := keyIdx
 	key := z.entries[curr].key
 	prev := z.entries[curr].parent
@@ -217,8 +215,8 @@ func (z *ZipTree[K, V]) deleteIndex(keyIdx ZipNodeEntryIndex) {
 	z.fixupCount(prev, SENTINEL)
 }
 
-func (z *ZipTree[K, V]) fixupCount(curr, limit ZipNodeEntryIndex) {
-	for curr != SENTINEL {
+func (z *ZipTree[K]) fixupCount(curr, limit ZipNodeEntryIndex) {
+	for curr != limit {
 		var count uint32 = 1
 		left, right := z.entries[curr].left, z.entries[curr].right
 		if left != SENTINEL {
@@ -233,7 +231,7 @@ func (z *ZipTree[K, V]) fixupCount(curr, limit ZipNodeEntryIndex) {
 }
 
 // DisplayTree the tree in a human-readable way
-func (z *ZipTree[K, V]) displayTree(rootIdx ZipNodeEntryIndex, prefix string, isLeft bool, hasBoth bool, sb *strings.Builder) {
+func (z *ZipTree[K]) displayTree(rootIdx ZipNodeEntryIndex, prefix string, isLeft bool, hasBoth bool, sb *strings.Builder) {
 	if rootIdx != SENTINEL {
 		node := &z.entries[rootIdx]
 
@@ -256,16 +254,16 @@ func (z *ZipTree[K, V]) displayTree(rootIdx ZipNodeEntryIndex, prefix string, is
 	}
 }
 
-func (z *ZipTree[K, V]) displayTreeNodesInOrder(rootIdx ZipNodeEntryIndex, sb *strings.Builder) {
-	if rootIdx != SENTINEL {
-		node := &z.entries[rootIdx]
-		z.displayTreeNodesInOrder(node.left, sb)
-		sb.WriteString(node.String() + "\n")
-		z.displayTreeNodesInOrder(node.right, sb)
+func (z *ZipTree[K]) displayTreeNodesInOrder(sb *strings.Builder) {
+	iter := z.NewIterator()
+	for !iter.IsEmpty() {
+		current := iter.Index()
+		sb.WriteString(z.entries[current].String() + "\n")
+		iter.Next()
 	}
 }
 
-func (z *ZipTree[K, V]) leftMost() ZipNodeEntryIndex {
+func (z *ZipTree[K]) leftMost() ZipNodeEntryIndex {
 	current := z.root
 	for z.entries[current].left != SENTINEL {
 		current = z.entries[current].left
@@ -273,7 +271,7 @@ func (z *ZipTree[K, V]) leftMost() ZipNodeEntryIndex {
 	return current
 }
 
-func (z *ZipTree[K, V]) rightMost() ZipNodeEntryIndex {
+func (z *ZipTree[K]) rightMost() ZipNodeEntryIndex {
 	current := z.root
 	for z.entries[current].right != SENTINEL {
 		current = z.entries[current].right
@@ -281,21 +279,21 @@ func (z *ZipTree[K, V]) rightMost() ZipNodeEntryIndex {
 	return current
 }
 
-func (z *ZipTree[K, V]) minimum() ZipNodeEntryIndex {
+func (z *ZipTree[K]) minimum() ZipNodeEntryIndex {
 	if z.root == SENTINEL {
 		return z.root
 	}
 	return z.leftMost()
 }
 
-func (z *ZipTree[K, V]) maximum() ZipNodeEntryIndex {
+func (z *ZipTree[K]) maximum() ZipNodeEntryIndex {
 	if z.root == SENTINEL {
 		return z.root
 	}
 	return z.rightMost()
 }
 
-func (z *ZipTree[K, V]) floor(key K) ZipNodeEntryIndex {
+func (z *ZipTree[K]) floor(key K) ZipNodeEntryIndex {
 	res := SENTINEL
 	root := z.root
 
@@ -310,7 +308,7 @@ func (z *ZipTree[K, V]) floor(key K) ZipNodeEntryIndex {
 	return res
 }
 
-func (z *ZipTree[K, V]) ceiling(key K) ZipNodeEntryIndex {
+func (z *ZipTree[K]) ceiling(key K) ZipNodeEntryIndex {
 	res := SENTINEL
 	root := z.root
 
@@ -325,7 +323,7 @@ func (z *ZipTree[K, V]) ceiling(key K) ZipNodeEntryIndex {
 	return res
 }
 
-func (z *ZipTree[K, V]) upperBound(key K) ZipNodeEntryIndex {
+func (z *ZipTree[K]) upperBound(key K) ZipNodeEntryIndex {
 	res := SENTINEL
 	root := z.root
 
@@ -340,11 +338,11 @@ func (z *ZipTree[K, V]) upperBound(key K) ZipNodeEntryIndex {
 	return res
 }
 
-func (z *ZipTree[K, V]) lowerBound(key K) ZipNodeEntryIndex {
+func (z *ZipTree[K]) lowerBound(key K) ZipNodeEntryIndex {
 	return z.ceiling(key)
 }
 
-func (z *ZipTree[K, V]) atIndex(idx uint32) ZipNodeEntryIndex {
+func (z *ZipTree[K]) atIndex(idx uint32) ZipNodeEntryIndex {
 	root := z.root
 	for root != SENTINEL {
 		left := z.entries[root].left
@@ -364,7 +362,7 @@ func (z *ZipTree[K, V]) atIndex(idx uint32) ZipNodeEntryIndex {
 	return root
 }
 
-func (z *ZipTree[K, V]) indexOf(key K) uint32 {
+func (z *ZipTree[K]) indexOf(key K) uint32 {
 	root := z.root
 	res := uint32(0)
 	for root != SENTINEL {
@@ -389,31 +387,31 @@ func (z *ZipTree[K, V]) indexOf(key K) uint32 {
 	return res
 }
 
-func (z *ZipTree[K, V]) iterator(idx ZipNodeEntryIndex) *ZipIterator[K, V] {
+func (z *ZipTree[K]) iterator(idx ZipNodeEntryIndex) *ZipIterator[K] {
 	if idx == SENTINEL {
-		return &ZipIterator[K, V]{
+		return &ZipIterator[K]{
 			current: SENTINEL,
 		}
 	} else {
-		return &ZipIterator[K, V]{
+		return &ZipIterator[K]{
 			current: idx,
 			entries: z.entries,
 		}
 	}
 }
 
-func NewZipTree[K, V any](less LessFn[K]) *ZipTree[K, V] {
-	return &ZipTree[K, V]{
-		entries:         make([]ZipNode[K, V], 0),
+func NewZipTree[K any](less LessFn[K]) *ZipTree[K] {
+	return &ZipTree[K]{
+		entries:         make([]ZipNode[K], 0),
 		root:            SENTINEL,
 		comparator:      Comparator[K](less),
 		randomGenerator: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 	}
 }
 
-func NewZipTreeWithRandomGenerator[K, V any](less LessFn[K], randomGenerator *rand.Rand) *ZipTree[K, V] {
-	return &ZipTree[K, V]{
-		entries:         make([]ZipNode[K, V], 0),
+func NewZipTreeWithRandomGenerator[K any](less LessFn[K], randomGenerator *rand.Rand) *ZipTree[K] {
+	return &ZipTree[K]{
+		entries:         make([]ZipNode[K], 0),
 		root:            SENTINEL,
 		comparator:      Comparator[K](less),
 		randomGenerator: randomGenerator,
@@ -421,84 +419,83 @@ func NewZipTreeWithRandomGenerator[K, V any](less LessFn[K], randomGenerator *ra
 }
 
 // Ceiling Returns an iterator pointing to the largest element in the BST greater than or equal to key
-func (z *ZipTree[K, V]) Ceiling(key K) *ZipIterator[K, V] {
+func (z *ZipTree[K]) Ceiling(key K) *ZipIterator[K] {
 	return z.iterator(z.ceiling(key))
 
 }
 
 // Floor Returns an iterator pointing to largest element in the BST less than or equal to key
-func (z *ZipTree[K, V]) Floor(key K) *ZipIterator[K, V] {
+func (z *ZipTree[K]) Floor(key K) *ZipIterator[K] {
 	return z.iterator(z.floor(key))
 }
 
 // UpperBound Returns an iterator pointing to the first element in the tree which is ordered after key
-func (z *ZipTree[K, V]) UpperBound(key K) *ZipIterator[K, V] {
+func (z *ZipTree[K]) UpperBound(key K) *ZipIterator[K] {
 	return z.iterator(z.upperBound(key))
 }
 
 // LowerBound Returns an iterator pointing to the first element in the tree which is not ordered before key
-func (z *ZipTree[K, V]) LowerBound(key K) *ZipIterator[K, V] {
+func (z *ZipTree[K]) LowerBound(key K) *ZipIterator[K] {
 	return z.iterator(z.lowerBound(key))
 }
 
-func (z *ZipTree[K, V]) Find(key K) *ZipIterator[K, V] {
+func (z *ZipTree[K]) Find(key K) *ZipIterator[K] {
 	return z.iterator(z.find(key))
 }
 
-func (z *ZipTree[K, V]) Minimum() *ZipIterator[K, V] {
+func (z *ZipTree[K]) Minimum() *ZipIterator[K] {
 	return z.iterator(z.minimum())
 }
 
-func (z *ZipTree[K, V]) Maximum() *ZipIterator[K, V] {
+func (z *ZipTree[K]) Maximum() *ZipIterator[K] {
 	return z.iterator(z.maximum())
 }
 
-func (z *ZipTree[K, V]) AtIndex(idx uint32) *ZipIterator[K, V] {
+func (z *ZipTree[K]) AtIndex(idx uint32) *ZipIterator[K] {
 	return z.iterator(z.atIndex(idx))
 }
 
-func (z *ZipTree[K, V]) IndexOf(key K) uint32 {
+func (z *ZipTree[K]) IndexOf(key K) uint32 {
 	return z.indexOf(key)
 }
 
 // Insert returns true if entry was inserted,
 // returns false to indicate update
-func (z *ZipTree[K, V]) Insert(key K, value V) bool {
+func (z *ZipTree[K]) Insert(key K) bool {
 	found := z.find(key)
 	if found == SENTINEL {
-		z.insert(z.root, key, value)
+		z.insert(z.root, key)
 		return true
 	} else {
-		z.entries[found].data = value
 		return false
 	}
 }
 
 // DeleteIter returns true if entry was deleted
 // returns false if entry not found
-func (z *ZipTree[K, V]) DeleteIter(iter *ZipIterator[K, V]) bool {
+func (z *ZipTree[K]) DeleteIter(iter *ZipIterator[K]) bool {
 	keyIdx := iter.Index()
 	return z.deleteInternal(keyIdx)
 }
 
 // Delete returns true if entry was deleted
 // returns false if entry not found
-func (z *ZipTree[K, V]) Delete(key K) bool {
+func (z *ZipTree[K]) Delete(key K) bool {
 	keyIdx := z.find(key)
 	return z.deleteInternal(keyIdx)
 }
 
-func (z *ZipTree[K, V]) DisplayTreeNodesInOrder() string {
+func (z *ZipTree[K]) DisplayTreeNodesInOrder() string {
 	var sb strings.Builder
-	z.displayTreeNodesInOrder(z.root, &sb)
+	z.displayTreeNodesInOrder(&sb)
 	return sb.String()
 }
 
-func (z *ZipTree[K, V]) Size() int {
+func (z *ZipTree[K]) Size() int {
 	return len(z.entries)
 }
 
-func (z *ZipTree[K, V]) Count() int {
+func (z *ZipTree[K]) Count() int {
 	if z.root == SENTINEL {
 		return 0
 	} else {
@@ -506,8 +503,8 @@ func (z *ZipTree[K, V]) Count() int {
 	}
 }
 
-func (z *ZipTree[K, V]) NewIterator() *ZipIterator[K, V] {
-	iter := &ZipIterator[K, V]{}
+func (z *ZipTree[K]) NewIterator() *ZipIterator[K] {
+	iter := &ZipIterator[K]{}
 	if z.root == SENTINEL {
 		iter.current = SENTINEL
 		return iter
@@ -518,8 +515,8 @@ func (z *ZipTree[K, V]) NewIterator() *ZipIterator[K, V] {
 	return iter
 }
 
-func (z *ZipTree[K, V]) NewPrevIterator() *ZipIterator[K, V] {
-	iter := &ZipIterator[K, V]{}
+func (z *ZipTree[K]) NewPrevIterator() *ZipIterator[K] {
+	iter := &ZipIterator[K]{}
 	if z.root == SENTINEL {
 		iter.current = SENTINEL
 		return iter
