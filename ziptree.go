@@ -20,9 +20,11 @@ type ZipNode[K any] struct {
 type ZipTree[K any] struct {
 	entries         []ZipNode[K]
 	root            ZipNodeEntryIndex
-	comparator      Comparator[K]
+	lessThan        LessFn[K]
 	randomGenerator *rand.Rand
 }
+
+type LessFn[T any] func(a, b T) bool
 
 func (zn *ZipNode[K]) String() string {
 	return fmt.Sprintf("Key: %v, Rank: (%d, %d), Count: %d", zn.key, zn.rank>>16, zn.rank&0x0000ffff, zn.count)
@@ -37,9 +39,9 @@ func (z *ZipTree[K]) String() string {
 func (z *ZipTree[K]) find(key K) ZipNodeEntryIndex {
 	root := z.root
 	for root != SENTINEL {
-		if z.comparator.LessThan(key, z.entries[root].key) {
+		if z.lessThan(key, z.entries[root].key) {
 			root = z.entries[root].left
-		} else if z.comparator.GreaterThan(key, z.entries[root].key) {
+		} else if z.lessThan(z.entries[root].key, key) { // b < a == a > b
 			root = z.entries[root].right
 		} else {
 			break
@@ -48,7 +50,8 @@ func (z *ZipTree[K]) find(key K) ZipNodeEntryIndex {
 	return root
 }
 
-func (z *ZipTree[K]) insert(rootIdx ZipNodeEntryIndex, key K) {
+func (z *ZipTree[K]) insert(key K) {
+	rootIdx := z.root
 	idx := ZipNodeEntryIndex(len(z.entries))
 	// zip-zip tree
 	var r1 uint32 = 0
@@ -73,9 +76,9 @@ func (z *ZipTree[K]) insert(rootIdx ZipNodeEntryIndex, key K) {
 	curr := rootIdx
 	prev := SENTINEL
 	for curr != SENTINEL && (rank < z.entries[curr].rank || (rank == z.entries[curr].rank &&
-		z.comparator.GreaterThan(key, z.entries[curr].key))) {
+		z.lessThan(z.entries[curr].key, key))) { // b < a == a > b
 		prev = curr
-		if z.comparator.LessThan(key, z.entries[curr].key) {
+		if z.lessThan(key, z.entries[curr].key) {
 			curr = z.entries[curr].left
 		} else {
 			curr = z.entries[curr].right
@@ -84,7 +87,7 @@ func (z *ZipTree[K]) insert(rootIdx ZipNodeEntryIndex, key K) {
 	if curr == rootIdx {
 		z.root = idx
 	} else {
-		if z.comparator.LessThan(key, z.entries[prev].key) {
+		if z.lessThan(key, z.entries[prev].key) {
 			z.entries[prev].left = idx
 		} else {
 			z.entries[prev].right = idx
@@ -93,7 +96,7 @@ func (z *ZipTree[K]) insert(rootIdx ZipNodeEntryIndex, key K) {
 	}
 
 	if curr != SENTINEL {
-		if z.comparator.LessThan(key, z.entries[curr].key) {
+		if z.lessThan(key, z.entries[curr].key) {
 			z.entries[idx].right = curr
 		} else {
 			z.entries[idx].left = curr
@@ -102,19 +105,19 @@ func (z *ZipTree[K]) insert(rootIdx ZipNodeEntryIndex, key K) {
 		prev = idx
 		for curr != SENTINEL {
 			fix := prev
-			if z.comparator.GreaterThan(key, z.entries[curr].key) {
-				for curr != SENTINEL && z.comparator.GreaterThanOrEqual(key, z.entries[curr].key) {
+			if z.lessThan(z.entries[curr].key, key) { // b < a  == a > b
+				for curr != SENTINEL && !z.lessThan(key, z.entries[curr].key) { // !(a < b) == a >= b
 					prev = curr
 					curr = z.entries[curr].right
 				}
 			} else {
-				for curr != SENTINEL && z.comparator.LessThanOrEqual(key, z.entries[curr].key) {
+				for curr != SENTINEL && !z.lessThan(z.entries[curr].key, key) { // !(b < a) == a <= b
 					prev = curr
 					curr = z.entries[curr].left
 				}
 			}
 
-			if z.comparator.LessThan(key, z.entries[fix].key) || (fix == idx && z.comparator.LessThan(key, z.entries[prev].key)) {
+			if z.lessThan(key, z.entries[fix].key) || (fix == idx && z.lessThan(key, z.entries[prev].key)) {
 				z.entries[fix].left = curr
 			} else {
 				z.entries[fix].right = curr
@@ -181,7 +184,7 @@ func (z *ZipTree[K]) deleteIndex(keyIdx ZipNodeEntryIndex) {
 	if z.root == keyIdx {
 		z.root = curr
 	} else {
-		if z.comparator.LessThan(key, z.entries[prev].key) {
+		if z.lessThan(key, z.entries[prev].key) {
 			z.entries[prev].left = curr
 		} else {
 			z.entries[prev].right = curr
@@ -298,7 +301,7 @@ func (z *ZipTree[K]) floor(key K) ZipNodeEntryIndex {
 	root := z.root
 
 	for root != SENTINEL {
-		if z.comparator.LessThan(key, z.entries[root].key) {
+		if z.lessThan(key, z.entries[root].key) {
 			root = z.entries[root].left
 		} else {
 			res = root
@@ -313,7 +316,7 @@ func (z *ZipTree[K]) ceiling(key K) ZipNodeEntryIndex {
 	root := z.root
 
 	for root != SENTINEL {
-		if z.comparator.GreaterThan(key, z.entries[root].key) {
+		if z.lessThan(z.entries[root].key, key) { // b < a == a > b
 			root = z.entries[root].right
 		} else {
 			res = root
@@ -328,7 +331,7 @@ func (z *ZipTree[K]) upperBound(key K) ZipNodeEntryIndex {
 	root := z.root
 
 	for root != SENTINEL {
-		if z.comparator.GreaterThanOrEqual(key, z.entries[root].key) {
+		if !z.lessThan(key, z.entries[root].key) { // !(a < b) == a >= b
 			root = z.entries[root].right
 		} else {
 			res = root
@@ -367,13 +370,13 @@ func (z *ZipTree[K]) indexOf(key K) uint32 {
 	res := uint32(0)
 	for root != SENTINEL {
 		left := z.entries[root].left
-		if z.comparator.LessThan(key, z.entries[root].key) {
+		if z.lessThan(key, z.entries[root].key) {
 			root = left
 		} else {
 			if left != SENTINEL {
 				res += z.entries[left].count
 			}
-			if z.comparator.GreaterThan(key, z.entries[root].key) {
+			if z.lessThan(z.entries[root].key, key) { // b < a == a > b
 				res += 1
 				root = z.entries[root].right
 			} else {
@@ -404,7 +407,7 @@ func NewZipTree[K any](less LessFn[K]) *ZipTree[K] {
 	return &ZipTree[K]{
 		entries:         make([]ZipNode[K], 0),
 		root:            SENTINEL,
-		comparator:      Comparator[K](less),
+		lessThan:        less,
 		randomGenerator: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 	}
 }
@@ -413,7 +416,7 @@ func NewZipTreeWithRandomGenerator[K any](less LessFn[K], randomGenerator *rand.
 	return &ZipTree[K]{
 		entries:         make([]ZipNode[K], 0),
 		root:            SENTINEL,
-		comparator:      Comparator[K](less),
+		lessThan:        less,
 		randomGenerator: randomGenerator,
 	}
 }
@@ -464,7 +467,7 @@ func (z *ZipTree[K]) IndexOf(key K) uint32 {
 func (z *ZipTree[K]) Insert(key K) bool {
 	found := z.find(key)
 	if found == SENTINEL {
-		z.insert(z.root, key)
+		z.insert(key)
 		return true
 	} else {
 		return false
